@@ -1,0 +1,56 @@
+程序D1：起飞延误分类模型数据预处理
+#################################Part1################################
+#在airdata数据库下建立表格airdat,并将航空数据导入表格中
+hive #进入hive
+CREATE database airdata;
+use airdata;
+CREATE TABLE airdat(year INT,month INT,dayofmonth INT,dayofweek INT,deptime INT,crsdeptime INT,arrtime INT,crsarrtime INT,uniquecarrier STRING,flightnum STRING,tailnum STRING,actualelapsedtime INT,crselapsedtime INT, airtime INT,arrdelay INT ,depdelay INT,origin STRING,dest STRING,distance INT,taxiin INT,taxiout INT ,cancelled INT,cancellationcode STRING,diverted INT,carrierdelay INT ,weatherdelay INT,nasdelay INT,securitydelay INT,lateaircraftdelay INT)
+COMMENT "this is all of the 21 sheets"
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;  
+
+load data local inpath '/home/air_data/airdata.csv'  into table airdat; 
+
+###在Hive中创建weatherdata表格，并将天气数据导入表格，作为出发机场的天气数据
+CREATE TABLE weatherdata(yeartmp SMALLINT,monthtmp TINYINT,daytmp TINYINT,maxtemp FLOAT,meantemp FLOAT,mintemp FLOAT,maxdewpoint FLOAT,meandewpoint FLOAT,mindewpoint FLOAT ,maxhumidity FLOAT,meanhumidity FLOAT ,minhumidity FLOAT ,maxsealevelpre FLOAT,meansealevelpre FLOAT,minsealevelpre FLOAT,maxvisibility FLOAT,meanvisibility FLOAT,minvisibility FLOAT,maxwindspeed FLOAT,meanwindspeed FLOAT,instantwindspeed FLOAT,rainfall FLOAT,cloudcover INT,events STRING,winddirdegrees SMALLINT,airporttmp STRING,cityabbr  STRING)
+COMMENT "this is all weather data of all airports during 1988-2008"
+ROW FORMAT DELIMITED FIELDS TERMINATED BY ','
+STORED AS TEXTFILE;
+
+load data local inpath "/home/air_data/rawweatherdata.csv"  into table weatherdata;
+
+##################################Part2###################################
+###从航空数据（airdat）中选取出建模需要的变量，并将其放在air表格中，用于之后的拼接表格
+CREATE VIEW air
+AS SELECT  year,month,dayofmonth,dayofweek,crsdeptime,crsarrtime,uniquecarrier,origin,dest,distance,arrdelay,depdelay
+FROM  airdat;
+
+###从weatheradta中选取出发机场天气数据建模所需变量，并将其放在depweather表格中，用于之后的拼接表格
+CREATE VIEW depweather
+AS SELECT yeartmp as depyeartmp,monthtmp as depmonthtmp,daytmp as depdaytmp,airporttmp as depairporttmp,meantemp as depmeantemp,meandewpoint as depmeandewpoint,meanhumidity as depmeanhumidity,meansealevelpre as depmeansealevelpre,meanvisibility as depmeanvisibility,meanwindspeed as depmeanwindspeed,rainfall as deprainfall,cloudcover as depcloudcover
+FROM  weatherdata;
+
+###从到达机场天气数据（arrweatherdata）中选取建模所需变量，并将其放在arrweather表格中，用于之后的拼接表格
+CREATE VIEW arrweather
+AS SELECT  yeartmp as arryeartmp,monthtmp as arrmonthtmp,daytmp as arrdaytmp,airporttmp as arrairporttmp,meantemp as arrmeantemp,meandewpoint as arrmeandewpoint,meanhumidity as arrmeanhumidity,meansealevelpre as arrmeansealevelpre,meanvisibility as arrmeanvisibility,meanwindspeed as arrmeanwindspeed,rainfall as arrrainfall,cloudcover as arrcloudcover
+FROM  weatherdata;
+
+###################Part3：合并#############################
+###将航空数据(air)与出发机场天气数据（depweather）进行合并，合并为tmp1
+CREATE VIEW tmp1
+AS SELECT  a.*,b.*
+FROM  air a LEFT OUTER JOIN depweather b  on  a.origin=b.depairporttmp AND a.year=b.depyeartmp AND a.month=b.depmonthtmp AND a.dayofmonth=b.depdaytmp;
+
+###将tmp1与到达机场天气数据（arrweather）进行合并，合并为tmp2
+CREATE VIEW tmp2
+AS SELECT  a.*,b.*
+FROM  tmp1 a LEFT OUTER JOIN arrweather b  on  a.dest=b.arrairporttmp AND a.year=b.arryeartmp AND a.month=b.arrmonthtmp AND a.dayofmonth=b.arrdaytmp;
+
+###退出hive环境，在linux下从合并好的表格中提取建立分类模型所需要的相关变量，将数据输出到当下目录的classdata0008.csv。
+exit;
+
+hive -S -e"SELECT arrdelay, month, dayofweek, crsdeptime, crsarrtime, distance, depmeantemp, depmeandewpoint, depmeanhumidity, 
+depmeansealevelpre, depmeanvisibility, depmeanwindspeed, deprainfall, depcloudcover, arrmeantemp, arrmeandewpoint, 
+arrmeanhumidity, arrmeansealevelpre, arrmeanvisibility, arrmeanwindspeed, arrrainfall, arrcloudcover FROM airdata.tmp2 where year > 1999" > classdata0008.csv
+
+

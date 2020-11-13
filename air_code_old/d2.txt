@@ -1,0 +1,39 @@
+程序D2：机场聚类数据预处理
+hive #进入hive
+use airdata; 
+show tables; 
+###查询时显示列名
+set hive.cli.print.header=true;
+###设置每行显示列数
+set hive.sample.seednumber=0;
+###考察数据有多少行
+select count(*) from airdata.airdata;
+###观察前2行数据
+select * from airdata.airdata limit 2;
+
+create view airdat_new as select ArrDelay,DepDelay,Origin,Dest,Distance,Cancelled from airdata.airdat;
+
+###进行变量的提取
+### 每个机场出发数量和到达数量
+create view t1 as select origin,count(*) as n_origin from airdata.airdat_new group by origin; create view t2 as select dest,count(*) as n_dest from airdata.airdat_new group by dest; 
+### 作为出发机场的取消数量和作为到达机场的取消数量
+create view t3 as select origin,sum(Cancelled) as Cancel_origin from airdata.airdat_new where Cancelled=1 or Cancelled=0 group by origin; 
+create view t4 as select dest,sum(Cancelled) as Cancel_dest from airdata.airdat_new where Cancelled=1 or Cancelled=0 group by dest; 
+##作为出发机场时，延迟数量以及延迟超过15分钟数量
+create view t5 as select origin,count(*) as DepDelay from airdata.airdat_new where DepDelay>15 group by origin; 
+create view t6 as select origin,count(*) as DepDelay_all from airdata.airdat_new where DepDelay is not null group by origin; 
+##作为到达机场时，延迟数量以及延迟超过15分钟数量
+create view t7 as select dest,count(*) as ArrDelay from airdata.airdat_new where ArrDelay>15 group by dest; 
+create view t8 as select dest,count(*) as ArrDelay_all from airdata.airdat_new where ArrDelay is not null group by dest; 
+##作为出发机场和到达机场时航线总里程和具有航线里程的航班数量。（用于计算平均值）
+create view t9 as select origin,sum(Distance) as Distance_origin from airdata.airdat_new group by origin; 
+create view t10 as select origin,count(*) as nDistance_origin from airdata.airdat_new where Distance is not null group by origin; 
+create view t11 as select dest,sum(Distance) as Distance_dest from airdata.airdat_new group by dest;
+create view t12 as select dest,count(*) as nDistance_dest from airdata.airdat_new where Distance is not null group by dest; 
+
+create view clusterdata as Select t1.*,t2.n_dest,t3.Cancel_origin,t4.Cancel_dest,t5.DepDelay, t6.DepDelay_all,t7.ArrDelay,t8.ArrDelay_all,t9.Distance_origin,t10.nDistance_origin,t11.Distance_dest,t12.nDistance_dest FROM airdata.t1,airdata.t2,airdata.t3,airdata.t4,airdata.t5,airdata.t6, airdata.t7,airdata.t8,airdata.t9,airdata.t10,airdata.t11,airdata.t12 where t1.origin=t2.dest and t1.origin=t3.origin and t1.origin=t4.dest and t1.origin=t5.origin and t1.origin=t6.origin and t1.origin=t7.dest and t1.origin=t8.dest and t1.origin=t9.origin and t1.origin=t10.origin and t1.origin=t11.dest and t1.origin=t12.dest;
+
+###退出hive环境，在linux下将hive中的表格下载到本地，存储为clusterdata.csv
+exit();
+
+hive -S -e"select * from airdata.clusterdata" >clusterdata.csv
