@@ -1,9 +1,12 @@
 --延误次数最多的航班
-select * from airdata.airdata_year t0
-
-where t0.origin = 'LAX',
-t0.dest = 'SFO'
-
+select t0.*, dep.*, arr.*
+from 
+(
+select * from
+airdata.airdata_year t
+where t.origin = 'LAX'
+and t.dest = 'SFO'
+) t0
 left join 
 airdata.weather dep
 on 
@@ -20,4 +23,3 @@ and arr.monthtmp = t0.month
 and arr.daytmp = t0.dayofmonth
 and arr.airporttmp = t0.dest
 
-into outfile 

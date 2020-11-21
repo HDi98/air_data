@@ -1,5 +1,4 @@
 -- 起飞延误
-set hive.cli.print.header = true;
 select year, 
 origin, 
 count(*) total_flight, 
