@@ -28,10 +28,10 @@ create external table if not exists airdata.weather(
     `cityabbr`  string
 )
 ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.OpenCSVSerde'
-LOCATION '/user/shared/dihaonan/weather';
+LOCATION '/user/shared/dihaonan/db/weather';
 
 
 
-load data inpath local '/user/shared/dihaonan/raw_data/rawweatherdata.csv' 
+load data inpath  '/user/shared/dihaonan/raw_data/rawweatherdata.csv' 
 overwrite into table airdata.weather
 ;
